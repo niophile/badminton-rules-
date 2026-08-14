@@ -1,0 +1,543 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Line Judge — Badminton In/Out Caller</title>
+<style>
+  :root{
+    --ink:#0f1410;
+    --panel:#151b16;
+    --panel-edge:#26302a;
+    --court-green:#1c6b3c;
+    --court-green-dark:#155630;
+    --line:#f6f7f2;
+    --shuttle:#ffcf4d;
+    --in-color:#5fe08a;
+    --out-color:#ff6b5e;
+    --text-dim:#9db3a4;
+    --text:#f2f6f1;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    min-height:100vh;
+    background:
+      radial-gradient(ellipse at 50% -10%, #1f2a20 0%, var(--ink) 55%);
+    color:var(--text);
+    font-family:'Segoe UI', system-ui, -apple-system, sans-serif;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    padding:28px 16px 60px;
+  }
+  header{
+    text-align:center;
+    margin-bottom:22px;
+    max-width:520px;
+  }
+  .eyebrow{
+    font-size:11px;
+    letter-spacing:.24em;
+    text-transform:uppercase;
+    color:var(--in-color);
+    font-weight:700;
+    margin-bottom:8px;
+  }
+  h1{
+    font-size:clamp(26px,5vw,34px);
+    margin:0 0 8px;
+    letter-spacing:-0.01em;
+    font-weight:800;
+  }
+  p.sub{
+    color:var(--text-dim);
+    font-size:14.5px;
+    line-height:1.5;
+    margin:0;
+  }
+
+  .controls{
+    display:flex;
+    gap:10px;
+    flex-wrap:wrap;
+    justify-content:center;
+    margin:22px 0 18px;
+  }
+  .segmented{
+    display:flex;
+    background:var(--panel);
+    border:1px solid var(--panel-edge);
+    border-radius:999px;
+    padding:4px;
+    gap:2px;
+  }
+  .segmented button{
+    border:none;
+    background:transparent;
+    color:var(--text-dim);
+    font-size:13.5px;
+    font-weight:600;
+    padding:9px 18px;
+    border-radius:999px;
+    cursor:pointer;
+    transition:background .15s ease, color .15s ease;
+    font-family:inherit;
+  }
+  .segmented button.active{
+    background:var(--court-green);
+    color:#fff;
+  }
+  .segmented button:hover:not(.active){
+    color:var(--text);
+  }
+
+  .stage{
+    position:relative;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    gap:14px;
+  }
+
+  #courtCanvas{
+    border-radius:10px;
+    cursor:crosshair;
+    box-shadow: 0 20px 50px -20px rgba(0,0,0,.7), 0 0 0 1px var(--panel-edge);
+    touch-action:none;
+    max-width:100%;
+    height:auto;
+  }
+
+  .result-panel{
+    width:100%;
+    max-width:360px;
+    min-height:78px;
+    background:var(--panel);
+    border:1px solid var(--panel-edge);
+    border-radius:14px;
+    padding:16px 18px;
+    display:flex;
+    align-items:center;
+    gap:14px;
+  }
+  .result-panel .badge{
+    flex:0 0 auto;
+    width:52px;
+    height:52px;
+    border-radius:50%;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    font-weight:800;
+    font-size:13px;
+    letter-spacing:.03em;
+    border:2px solid var(--panel-edge);
+    color:var(--text-dim);
+  }
+  .result-panel .badge.in{
+    color:var(--in-color);
+    border-color:var(--in-color);
+    box-shadow:0 0 18px -4px var(--in-color);
+  }
+  .result-panel .badge.out{
+    color:var(--out-color);
+    border-color:var(--out-color);
+    box-shadow:0 0 18px -4px var(--out-color);
+  }
+  .result-panel .msg{
+    flex:1;
+  }
+  .result-panel .msg .call{
+    font-size:16px;
+    font-weight:800;
+    letter-spacing:.02em;
+    margin-bottom:3px;
+  }
+  .result-panel .msg .call.in{color:var(--in-color);}
+  .result-panel .msg .call.out{color:var(--out-color);}
+  .result-panel .msg .reason{
+    font-size:13px;
+    color:var(--text-dim);
+    line-height:1.4;
+  }
+
+  .footer-row{
+    display:flex;
+    gap:10px;
+    align-items:center;
+  }
+  .clear-btn{
+    background:transparent;
+    border:1px solid var(--panel-edge);
+    color:var(--text-dim);
+    font-size:13px;
+    font-weight:600;
+    padding:9px 16px;
+    border-radius:999px;
+    cursor:pointer;
+    font-family:inherit;
+    transition:border-color .15s ease, color .15s ease;
+  }
+  .clear-btn:hover{
+    border-color:var(--in-color);
+    color:var(--in-color);
+  }
+
+  .legend{
+    margin-top:6px;
+    font-size:12px;
+    color:var(--text-dim);
+    text-align:center;
+    max-width:340px;
+    line-height:1.5;
+  }
+  .legend b{color:var(--text);}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="eyebrow">Rule-accurate line calling</div>
+  <h1>Line Judge</h1>
+  <p class="sub">Pick a format and shot type, then click anywhere on the court to drop a shuttle. Every boundary line counts as part of the court — landing on a line is always <b style="color:var(--in-color)">IN</b>.</p>
+</header>
+
+<div class="controls">
+  <div class="segmented" id="formatToggle">
+    <button data-val="singles" class="active">Singles</button>
+    <button data-val="doubles">Doubles</button>
+  </div>
+  <div class="segmented" id="shotToggle">
+    <button data-val="serve" class="active">Serve</button>
+    <button data-val="rally">Rally</button>
+  </div>
+</div>
+
+<div class="stage">
+  <canvas id="courtCanvas" width="360" height="700"></canvas>
+
+  <div class="result-panel">
+    <div class="badge" id="badge">—</div>
+    <div class="msg">
+      <div class="call" id="callText">Awaiting shot</div>
+      <div class="reason" id="reasonText">Click on the court to make a call.</div>
+    </div>
+  </div>
+
+  <div class="footer-row">
+    <button class="clear-btn" id="clearBtn">Clear marks</button>
+  </div>
+
+  <div class="legend" id="legendText"></div>
+</div>
+
+<script>
+const canvas = document.getElementById('courtCanvas');
+const ctx = canvas.getContext('2d');
+
+// ----- Court geometry (feet), standard badminton dimensions -----
+const COURT_LENGTH = 44;      // ft, full doubles length
+const COURT_WIDTH  = 20;      // ft, full doubles width
+const SINGLES_INSET = 1.5;    // ft each side -> singles width 17ft
+const SHORT_SERVICE = 6.5;    // ft from net
+const LONG_SERVICE_INSET = 2.5; // ft inset from back boundary (doubles serve back line)
+
+const PAD = 34;               // px margin around court
+const PX_PER_FT = 14;
+const COURT_W_PX = COURT_WIDTH * PX_PER_FT;
+const COURT_H_PX = COURT_LENGTH * PX_PER_FT;
+
+canvas.width = COURT_W_PX + PAD*2;
+canvas.height = COURT_H_PX + PAD*2;
+
+function ftToPxX(xFt){ return PAD + xFt*PX_PER_FT; }
+function ftToPxY(yFt){ return PAD + yFt*PX_PER_FT; }
+function pxToFtX(xPx){ return (xPx-PAD)/PX_PER_FT; }
+function pxToFtY(yPx){ return (yPx-PAD)/PX_PER_FT; }
+
+const NET_Y = COURT_LENGTH/2; // 22ft
+const SHORT_TOP = NET_Y - SHORT_SERVICE;      // 15.5
+const SHORT_BOT = NET_Y + SHORT_SERVICE;      // 28.5
+const LONG_TOP  = LONG_SERVICE_INSET;         // 2.5
+const LONG_BOT  = COURT_LENGTH - LONG_SERVICE_INSET; // 41.5
+const CENTER_X  = COURT_WIDTH/2;              // 10
+
+let state = { format:'singles', shot:'serve' };
+let lastPoint = null;
+
+function drawCourt(){
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+
+  // outer green field (slightly larger than court, like a stadium surface)
+  const grad = ctx.createLinearGradient(0,0,0,canvas.height);
+  grad.addColorStop(0, '#1d7a44');
+  grad.addColorStop(1, '#145a32');
+  ctx.fillStyle = grad;
+  roundRect(ctx, PAD-14, PAD-14, COURT_W_PX+28, COURT_H_PX+28, 10);
+  ctx.fill();
+
+  // inner playing surface, slightly darker tone to separate from surrounds
+  ctx.fillStyle = '#1c6b3c';
+  ctx.fillRect(PAD-6, PAD-6, COURT_W_PX+12, COURT_H_PX+12);
+
+  ctx.strokeStyle = '#f6f7f2';
+  ctx.lineWidth = 2.5;
+  ctx.lineJoin = 'miter';
+
+  // outer doubles boundary
+  ctx.strokeRect(ftToPxX(0), ftToPxY(0), COURT_W_PX, COURT_H_PX);
+
+  // singles sidelines
+  line(ftToPxX(SINGLES_INSET), ftToPxY(0), ftToPxX(SINGLES_INSET), ftToPxY(COURT_LENGTH));
+  line(ftToPxX(COURT_WIDTH-SINGLES_INSET), ftToPxY(0), ftToPxX(COURT_WIDTH-SINGLES_INSET), ftToPxY(COURT_LENGTH));
+
+  // short service lines
+  line(ftToPxX(0), ftToPxY(SHORT_TOP), ftToPxX(COURT_WIDTH), ftToPxY(SHORT_TOP));
+  line(ftToPxX(0), ftToPxY(SHORT_BOT), ftToPxX(COURT_WIDTH), ftToPxY(SHORT_BOT));
+
+  // long service lines (doubles)
+  line(ftToPxX(0), ftToPxY(LONG_TOP), ftToPxX(COURT_WIDTH), ftToPxY(LONG_TOP));
+  line(ftToPxX(0), ftToPxY(LONG_BOT), ftToPxX(COURT_WIDTH), ftToPxY(LONG_BOT));
+
+  // center line: net->back boundary on each half, only within side lines width
+  line(ftToPxX(CENTER_X), ftToPxY(0), ftToPxX(CENTER_X), ftToPxY(SHORT_TOP));
+  line(ftToPxX(CENTER_X), ftToPxY(SHORT_BOT), ftToPxX(CENTER_X), ftToPxY(COURT_LENGTH));
+
+  // net
+  ctx.save();
+  ctx.strokeStyle = '#f2f6f1';
+  ctx.lineWidth = 5;
+  ctx.setLineDash([6,5]);
+  ctx.beginPath();
+  ctx.moveTo(ftToPxX(0)-8, ftToPxY(NET_Y));
+  ctx.lineTo(ftToPxX(COURT_WIDTH)+8, ftToPxY(NET_Y));
+  ctx.stroke();
+  ctx.restore();
+
+  // net posts
+  ctx.fillStyle = '#e9e9e9';
+  ctx.fillRect(ftToPxX(0)-10, ftToPxY(NET_Y)-9, 6, 18);
+  ctx.fillRect(ftToPxX(COURT_WIDTH)+4, ftToPxY(NET_Y)-9, 6, 18);
+
+  // highlight active valid zone(s) subtly
+  drawValidZoneOverlay();
+
+  if(lastPoint){
+    drawShuttle(lastPoint.px, lastPoint.py, lastPoint.result);
+  }
+}
+
+function drawValidZoneOverlay(){
+  ctx.save();
+  ctx.globalAlpha = 0.16;
+  ctx.fillStyle = '#fff';
+
+  const wMin = state.format==='singles' ? SINGLES_INSET : 0;
+  const wMax = state.format==='singles' ? COURT_WIDTH-SINGLES_INSET : COURT_WIDTH;
+
+  if(state.shot==='serve'){
+    const dMax = state.format==='doubles' ? (NET_Y-LONG_TOP) : NET_Y;
+    // top half valid band
+    ctx.fillRect(ftToPxX(wMin), ftToPxY(NET_Y-dMax), (wMax-wMin)*PX_PER_FT, (dMax-SHORT_SERVICE)*PX_PER_FT);
+    // bottom half valid band
+    ctx.fillRect(ftToPxX(wMin), ftToPxY(NET_Y+SHORT_SERVICE), (wMax-wMin)*PX_PER_FT, (dMax-SHORT_SERVICE)*PX_PER_FT);
+  } else {
+    ctx.fillRect(ftToPxX(wMin), ftToPxY(0), (wMax-wMin)*PX_PER_FT, COURT_H_PX);
+  }
+  ctx.restore();
+}
+
+function line(x1,y1,x2,y2){
+  ctx.beginPath();
+  ctx.moveTo(x1,y1);
+  ctx.lineTo(x2,y2);
+  ctx.stroke();
+}
+
+function roundRect(ctx,x,y,w,h,r){
+  ctx.beginPath();
+  ctx.moveTo(x+r,y);
+  ctx.arcTo(x+w,y,x+w,y+h,r);
+  ctx.arcTo(x+w,y+h,x,y+h,r);
+  ctx.arcTo(x,y+h,x,y,r);
+  ctx.arcTo(x,y,x+w,y,r);
+  ctx.closePath();
+}
+
+function drawShuttle(px,py,result){
+  ctx.save();
+  // shadow ring
+  ctx.beginPath();
+  ctx.arc(px,py,13,0,Math.PI*2);
+  ctx.fillStyle = result==='in' ? 'rgba(95,224,138,0.25)' : 'rgba(255,107,94,0.25)';
+  ctx.fill();
+
+  // shuttle body (cork)
+  ctx.beginPath();
+  ctx.arc(px,py,6,0,Math.PI*2);
+  ctx.fillStyle = '#fff';
+  ctx.fill();
+  ctx.lineWidth = 2;
+  ctx.strokeStyle = result==='in' ? '#3fae6a' : '#d84a3d';
+  ctx.stroke();
+
+  // feathers hint (small triangle)
+  ctx.beginPath();
+  ctx.moveTo(px, py-6);
+  ctx.lineTo(px-5, py-16);
+  ctx.lineTo(px+5, py-16);
+  ctx.closePath();
+  ctx.fillStyle = '#ffcf4d';
+  ctx.fill();
+  ctx.restore();
+}
+
+// ----- Rule evaluation -----
+const EPS = 0.12; // ft tolerance for "on the line" detection
+
+function evaluate(xFt, yFt){
+  const inCourtBounds = xFt >= -1 && xFt <= COURT_WIDTH+1 && yFt >= -1 && yFt <= COURT_LENGTH+1;
+  if(!inCourtBounds){
+    return { result:'out', reason:'The shuttle landed well outside the court entirely.', onLine:false };
+  }
+
+  const half = yFt < NET_Y ? 'top' : 'bottom';
+  const d = half === 'top' ? (NET_Y - yFt) : (yFt - NET_Y);
+
+  const wMin = state.format==='singles' ? SINGLES_INSET : 0;
+  const wMax = state.format==='singles' ? COURT_WIDTH-SINGLES_INSET : COURT_WIDTH;
+  const sideLabel = state.format==='singles' ? 'singles sideline' : 'doubles sideline';
+
+  let dMin, dMax, backLabel;
+  if(state.shot==='serve'){
+    dMin = SHORT_SERVICE;
+    dMax = state.format==='doubles' ? (NET_Y-LONG_TOP) : NET_Y;
+    backLabel = state.format==='doubles' ? 'doubles long service line' : 'back boundary line';
+  } else {
+    dMin = 0;
+    dMax = NET_Y;
+    backLabel = 'back boundary line';
+  }
+
+  const withinWidth = xFt >= wMin-EPS && xFt <= wMax+EPS;
+  const withinDepth = d >= dMin-EPS && d <= dMax+EPS;
+
+  const onLeftSide  = Math.abs(xFt-wMin) <= EPS;
+  const onRightSide = Math.abs(xFt-wMax) <= EPS;
+  const onFrontLine = state.shot==='serve' && Math.abs(d-dMin) <= EPS;
+  const onBackLine   = Math.abs(d-dMax) <= EPS;
+  const onLine = onLeftSide || onRightSide || onFrontLine || onBackLine;
+
+  if(withinWidth && withinDepth){
+    if(onLine){
+      let which = onFrontLine ? 'short service line' : onBackLine ? backLabel : sideLabel;
+      return { result:'in', reason:`Touched the ${which} — the line is part of the court, so this is good.`, onLine:true };
+    }
+    return { result:'in', reason: state.shot==='serve'
+        ? `Landed cleanly inside the ${state.format} service court.`
+        : `Landed cleanly inside the ${state.format} boundary.`, onLine:false };
+  }
+
+  // Determine specific failure reason
+  if(!withinWidth){
+    const side = xFt < wMin ? 'left' : 'right';
+    return { result:'out', reason:`Landed beyond the ${sideLabel} on the ${side} — outside the court width.`, onLine:false };
+  }
+  if(state.shot==='serve' && d < dMin){
+    return { result:'out', reason:'Serve landed short — in front of the short service line (a fault).', onLine:false };
+  }
+  if(d > dMax){
+    return { result:'out', reason: state.shot==='serve'
+        ? `Serve landed long — beyond the ${backLabel}.`
+        : `Landed beyond the ${backLabel}.`, onLine:false };
+  }
+  return { result:'out', reason:'Landed outside the valid area for this shot.', onLine:false };
+}
+
+// ----- Interaction -----
+canvas.addEventListener('click', (e)=>{
+  const rect = canvas.getBoundingClientRect();
+  const scaleX = canvas.width / rect.width;
+  const scaleY = canvas.height / rect.height;
+  const px = (e.clientX - rect.left) * scaleX;
+  const py = (e.clientY - rect.top) * scaleY;
+
+  const xFt = pxToFtX(px);
+  const yFt = pxToFtY(py);
+
+  const evalResult = evaluate(xFt, yFt);
+  lastPoint = { px, py, result: evalResult.result };
+  drawCourt();
+  updatePanel(evalResult);
+});
+
+function updatePanel(evalResult){
+  const badge = document.getElementById('badge');
+  const callText = document.getElementById('callText');
+  const reasonText = document.getElementById('reasonText');
+
+  badge.textContent = evalResult.result === 'in' ? 'IN' : 'OUT';
+  badge.className = 'badge ' + evalResult.result;
+  callText.textContent = evalResult.result === 'in'
+    ? (evalResult.onLine ? 'IN — on the line' : 'IN')
+    : 'OUT';
+  callText.className = 'call ' + evalResult.result;
+  reasonText.textContent = evalResult.reason;
+}
+
+function updateLegend(){
+  const legend = document.getElementById('legendText');
+  const fmt = state.format === 'singles' ? 'Singles' : 'Doubles';
+  const shot = state.shot === 'serve' ? 'Serve' : 'Rally';
+  legend.innerHTML = `<b>${fmt} · ${shot}</b> — highlighted band shows the current valid landing zone. `
+    + (state.shot==='serve'
+        ? (state.format==='doubles'
+            ? 'Doubles serve: short service line to the doubles long service line, full doubles width.'
+            : 'Singles serve: short service line to the full back boundary, singles width only.')
+        : (state.format==='doubles'
+            ? 'Doubles rally: full court, full doubles width.'
+            : 'Singles rally: full court length, singles width only.'));
+}
+
+// ----- Toggles -----
+function setupToggle(id, key){
+  const el = document.getElementById(id);
+  el.querySelectorAll('button').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      el.querySelectorAll('button').forEach(b=>b.classList.remove('active'));
+      btn.classList.add('active');
+      state[key] = btn.dataset.val;
+      updateLegend();
+      drawCourt();
+      if(lastPoint){
+        // re-evaluate last point under new rules
+        const xFt = pxToFtX(lastPoint.px);
+        const yFt = pxToFtY(lastPoint.py);
+        const evalResult = evaluate(xFt, yFt);
+        lastPoint.result = evalResult.result;
+        drawCourt();
+        updatePanel(evalResult);
+      }
+    });
+  });
+}
+setupToggle('formatToggle','format');
+setupToggle('shotToggle','shot');
+
+document.getElementById('clearBtn').addEventListener('click', ()=>{
+  lastPoint = null;
+  drawCourt();
+  document.getElementById('badge').textContent = '—';
+  document.getElementById('badge').className = 'badge';
+  document.getElementById('callText').textContent = 'Awaiting shot';
+  document.getElementById('callText').className = 'call';
+  document.getElementById('reasonText').textContent = 'Click on the court to make a call.';
+});
+
+updateLegend();
+drawCourt();
+</script>
+
+</body>
+</html>
